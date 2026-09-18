@@ -1,0 +1,6 @@
+{
+  "name": "Are you native?",
+  "description": "원어민 색출 심문에서 콩글리시를 피하고 구어체로 답해 정체를 숨기는 5분 영어 표현 감별 게임",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
