@@ -3,10 +3,10 @@ import { motion } from 'motion/react';
 import { GameSessionResult, UserAnswerRecord } from '../types';
 import { SuspicionGauge } from './SuspicionGauge';
 import { sound } from '../utils/sound';
+import { SheetSettingsModal } from './SheetSettingsModal';
 import {
   RotateCcw,
   Home,
-  AlertTriangle,
   CheckCircle2,
   ArrowRight,
   ShieldAlert,
@@ -14,23 +14,40 @@ import {
   BookOpen,
   Share2,
   Check,
+  FileSpreadsheet,
+  RefreshCw,
+  Settings,
 } from 'lucide-react';
 
 interface ResultScreenProps {
   result: GameSessionResult;
   onRestart: () => void;
   onHome: () => void;
+  sheetStatus: {
+    loading: boolean;
+    success?: boolean;
+    playCount?: number;
+    message?: string;
+  };
+  onRetrySheetSave: () => void;
+  hasSheetUrl: boolean;
+  onSheetUrlConfigured: (url: string) => void;
 }
 
 export const ResultScreen: React.FC<ResultScreenProps> = ({
   result,
   onRestart,
   onHome,
+  sheetStatus,
+  onRetrySheetSave,
+  hasSheetUrl,
+  onSheetUrlConfigured,
 }) => {
   const [filterMode, setFilterMode] = useState<'wrong' | 'all'>('wrong');
   const [copied, setCopied] = useState(false);
+  const [isSheetModalOpen, setIsSheetModalOpen] = useState(false);
 
-  const { isBusted, finalSuspicion, history, nativeCount, konglishCount } = result;
+  const { isBusted, finalSuspicion, history, nativeCount, konglishCount, playerName } = result;
 
   // Filtered items
   const wrongItems = history.filter((item) => !item.isNative);
@@ -38,9 +55,10 @@ export const ResultScreen: React.FC<ResultScreenProps> = ({
 
   const handleShare = () => {
     sound.playOptionSelect();
+    const displayName = playerName ? `요원 [${playerName}]` : '요원';
     const text = isBusted
-      ? `[Are you native?] 심문관에게 콩글리시가 발각되었습니다! 🚨 의심도: ${finalSuspicion}/60`
-      : `[Are you native?] 심문관을 완벽히 속이고 생존 성공! 🕵️‍♂️ 최종 의심도: ${finalSuspicion}/60`;
+      ? `[Are you native?] ${displayName}님이 심문관에게 콩글리시로 발각되었습니다! 🚨 의심도: ${finalSuspicion}/60`
+      : `[Are you native?] ${displayName}님이 심문관을 완벽히 속이고 생존 성공! 🕵️‍♂️ 최종 의심도: ${finalSuspicion}/60`;
 
     if (navigator.clipboard) {
       navigator.clipboard.writeText(text);
@@ -89,13 +107,19 @@ export const ResultScreen: React.FC<ResultScreenProps> = ({
           </div>
 
           {/* Big Result Heading */}
-          <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight mb-2">
+          <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight mb-1">
             {isBusted ? (
               <span className="text-rose-400">비원어민 발각! 탈락</span>
             ) : (
               <span className="text-emerald-400">심문 통과! 생존 성공</span>
             )}
           </h2>
+
+          {playerName && (
+            <p className="text-xs font-mono text-amber-300 font-semibold mb-2">
+              플레이 요원: {playerName}
+            </p>
+          )}
 
           <p className="text-xs sm:text-sm text-zinc-300 max-w-xs mx-auto leading-relaxed mb-4">
             {isBusted
@@ -121,13 +145,84 @@ export const ResultScreen: React.FC<ResultScreenProps> = ({
           {/* Quick Score Chips */}
           <div className="flex items-center justify-center gap-3 text-xs">
             <span className="px-2.5 py-1 rounded-lg bg-emerald-950/60 border border-emerald-600/30 text-emerald-300 font-medium">
-              원어민 구어 선택: <strong>{nativeCount}</strong>개
+              원어민 구어: <strong>{nativeCount}</strong>개
             </span>
             <span className="px-2.5 py-1 rounded-lg bg-rose-950/60 border border-rose-600/30 text-rose-300 font-medium">
-              콩글리시 선택: <strong>{konglishCount}</strong>개
+              콩글리시: <strong>{konglishCount}</strong>개
             </span>
           </div>
         </motion.div>
+
+        {/* Google Sheet Sync Status Card */}
+        <div
+          id="google-sheet-sync-card"
+          className="rounded-2xl bg-zinc-900/90 border border-zinc-800 p-3.5 shadow-lg mb-4 text-xs"
+        >
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2">
+              <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
+              <span className="font-semibold text-zinc-200">구글 시트 기록 상태</span>
+            </div>
+            <button
+              onClick={() => setIsSheetModalOpen(true)}
+              className="text-[11px] text-zinc-400 hover:text-amber-300 flex items-center gap-1 transition-colors cursor-pointer"
+            >
+              <Settings className="w-3.5 h-3.5" />
+              <span>연동 설정 / 코드</span>
+            </button>
+          </div>
+
+          {hasSheetUrl ? (
+            <div className="space-y-2">
+              {sheetStatus.loading ? (
+                <div className="flex items-center gap-2 text-amber-300 bg-amber-950/30 p-2 rounded-xl border border-amber-600/30">
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin shrink-0" />
+                  <span>구글 시트에 게임 결과를 안전하게 전송 중입니다...</span>
+                </div>
+              ) : sheetStatus.success ? (
+                <div className="flex items-start justify-between gap-2 text-emerald-300 bg-emerald-950/40 p-2.5 rounded-xl border border-emerald-600/40">
+                  <div className="flex items-start gap-2">
+                    <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5 text-emerald-400" />
+                    <div>
+                      <p className="font-semibold text-emerald-200">
+                        구글 시트에 행이 성공적으로 추가되었습니다!
+                      </p>
+                      {sheetStatus.playCount ? (
+                        <p className="text-[11px] text-emerald-400/90 mt-0.5">
+                          '{playerName || '요원'}'님의 누적 플레이: <strong>{sheetStatus.playCount}회차</strong>
+                        </p>
+                      ) : null}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-center justify-between gap-2 text-rose-300 bg-rose-950/40 p-2 rounded-xl border border-rose-600/40">
+                  <div className="flex items-center gap-1.5 truncate">
+                    <span>{sheetStatus.message || '시트 저장에 실패했습니다.'}</span>
+                  </div>
+                  <button
+                    onClick={onRetrySheetSave}
+                    className="py-1 px-2.5 rounded-lg bg-rose-900/80 hover:bg-rose-800 text-rose-200 text-[11px] font-semibold shrink-0 cursor-pointer transition-colors"
+                  >
+                    재시도
+                  </button>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-zinc-950/70 border border-zinc-800">
+              <span className="text-zinc-400 text-[11px]">
+                구글 앱스 스크립트 웹 앱 URL을 등록하면 게임 결과가 시트에 자동 저장됩니다.
+              </span>
+              <button
+                onClick={() => setIsSheetModalOpen(true)}
+                className="py-1 px-2.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 text-[11px] font-bold shrink-0 cursor-pointer transition-colors"
+              >
+                URL 등록
+              </button>
+            </div>
+          )}
+        </div>
 
         {/* Learning Review Section (내가 고른 콩글리시 -> 원어민 표현 비교) */}
         <div id="review-section" className="space-y-3 mb-6">
@@ -320,6 +415,16 @@ export const ResultScreen: React.FC<ResultScreenProps> = ({
           </button>
         </div>
       </div>
+
+      {/* Sheet Settings Modal */}
+      <SheetSettingsModal
+        isOpen={isSheetModalOpen}
+        onClose={() => setIsSheetModalOpen(false)}
+        onSavedUrl={(url) => {
+          onSheetUrlConfigured(url);
+          onRetrySheetSave();
+        }}
+      />
     </div>
   );
 };

@@ -35,4 +35,6 @@ export interface GameSessionResult {
   nativeCount: number;
   konglishCount: number;
   history: UserAnswerRecord[];
+  playerName?: string;
+  wrongExpressionsString?: string;
 }
